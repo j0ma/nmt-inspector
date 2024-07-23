@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+
+import os
+
+import click
+from pathlib import Path
+from rich.console import Console
+from rich.table import Table
+import random
+
+
+def grab_from_env(var_name, default=None):
+    return os.environ.get(var_name, default)
+
+
+@click.group()
+def cli():
+    pass
+
+
+def get_data(source, reference, hypothesis):
+
+    source_path = Path(source)
+    reference_path = Path(reference)
+    hypothesis_path = Path(hypothesis)
+
+    with open(source_path, "r") as f:
+        source_data = f.read().splitlines()
+    with open(reference_path, "r") as f:
+        reference_data = f.read().splitlines()
+    with open(hypothesis_path, "r") as f:
+        hypothesis_data = f.read().splitlines()
+
+    combined_data = list(zip(source_data, reference_data, hypothesis_data))
+
+    return combined_data
+
+
+@cli.command()
+@click.option("--nsamp", "-n", help="The number of samples to print.")
+@click.option("--source", "-src", type=click.Path(exists=True), help="The source file.")
+@click.option(
+    "--reference", "-ref", type=click.Path(exists=True), help="The reference file."
+)
+@click.option(
+    "--hypothesis", "-hyp", type=click.Path(exists=True), help="The hypothesis file."
+)
+def inspect_translations(nsamp, source, reference, hypothesis):
+
+    # Grab nsamp from environment if not provided
+    nsamp = int(nsamp) if nsamp else int(grab_from_env("NSAMP", 10))
+
+    combined_data = get_data(source, reference, hypothesis)
+    original_indices = list(range(len(combined_data)))
+    shuffled_indices = list(range(len(combined_data)))
+    random.shuffle(shuffled_indices)
+
+    old_to_new_index_map = dict(zip(original_indices, shuffled_indices))
+
+    console = Console()
+
+    for i, _ in enumerate(combined_data[:nsamp], start=1):
+        real_index = old_to_new_index_map[i]
+        src, ref, hyp = combined_data[real_index]
+
+        table = Table(show_header=True, header_style="bold magenta", padding=(0, 1))
+        table.add_column("Example", style="dim", width=12)
+        table.add_column("Text", width=100)
+
+        table.add_row("Source", src)
+        table.add_row("Reference", ref)
+        table.add_row("Hypothesis", hyp)
+
+        console.print(f"Example {i} (real: {real_index}):")
+        console.print(table)
+        console.print("\n")
+
+
+@cli.command()
+@click.option(
+    "--index",
+    "-i",
+    help="The index of the sentence to inspect.",
+    type=int,
+    required=True,
+)
+@click.option("--source", "-src", type=click.Path(exists=True), help="The source file.")
+@click.option(
+    "--reference", "-ref", type=click.Path(exists=True), help="The reference file."
+)
+@click.option(
+    "--hypothesis", "-hyp", type=click.Path(exists=True), help="The hypothesis file."
+)
+def inspect_sentence(index, source, reference, hypothesis):
+
+    combined_data = get_data(source, reference, hypothesis)
+
+    src, ref, hyp = combined_data[index]
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold magenta", padding=(0, 1))
+
+    # Add columns to display one token per row
+    table.add_column("Example", style="dim", width=12)
+    table.add_column("Source", width=33)
+    table.add_column("Reference", width=33)
+    table.add_column("Hypothesis", width=33)
+
+    # Iterate over tokens
+    import itertools as it
+
+    for token_idx, (s, r, h) in enumerate(
+        it.zip_longest(src.split(), ref.split(), hyp.split())
+    ):
+        table.add_row(f"Token {token_idx}", s, r, h)
+
+    console.print(table)
+
+
+if __name__ == "__main__":
+    cli()
