@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
 import os
+import random
+from pathlib import Path
 
 import click
-from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-import random
+
+# Total screen width
+TOTAL_WIDTH = 120
 
 
 def grab_from_env(var_name, default=None):
@@ -19,7 +22,6 @@ def cli():
 
 
 def get_data(source, reference, hypothesis):
-
     source_path = Path(source)
     reference_path = Path(reference)
     hypothesis_path = Path(hypothesis)
@@ -36,6 +38,29 @@ def get_data(source, reference, hypothesis):
     return combined_data
 
 
+def get_data_multi_hyp(source, reference, hypothesis_files):
+    source_path = Path(source)
+    reference_path = Path(reference)
+    hypothesis_paths = [Path(h) for h in hypothesis_files]
+
+    hypothesis_data = []
+    with open(source_path, "r") as f:
+        source_data = f.read().splitlines()
+    with open(reference_path, "r") as f:
+        reference_data = f.read().splitlines()
+
+    for hyp_file in hypothesis_paths:
+        with open(hyp_file, "r") as f:
+            hypothesis_data.append(f.read().splitlines())
+
+    # Transpose the hypothesis data
+    hypothesis_data = list(zip(*hypothesis_data))
+
+    combined_data = list(zip(source_data, reference_data, hypothesis_data))
+
+    return combined_data
+
+
 @cli.command()
 @click.option("--nsamp", "-n", help="The number of samples to print.")
 @click.option("--source", "-src", type=click.Path(exists=True), help="The source file.")
@@ -46,7 +71,6 @@ def get_data(source, reference, hypothesis):
     "--hypothesis", "-hyp", type=click.Path(exists=True), help="The hypothesis file."
 )
 def inspect_translations(nsamp, source, reference, hypothesis):
-
     # Grab nsamp from environment if not provided
     nsamp = int(nsamp) if nsamp else int(grab_from_env("NSAMP", 10))
 
@@ -92,7 +116,6 @@ def inspect_translations(nsamp, source, reference, hypothesis):
     "--hypothesis", "-hyp", type=click.Path(exists=True), help="The hypothesis file."
 )
 def inspect_sentence(index, source, reference, hypothesis):
-
     combined_data = get_data(source, reference, hypothesis)
 
     src, ref, hyp = combined_data[index]
@@ -113,6 +136,55 @@ def inspect_sentence(index, source, reference, hypothesis):
         it.zip_longest(src.split(), ref.split(), hyp.split())
     ):
         table.add_row(f"Token {token_idx}", s, r, h)
+
+    console.print(table)
+
+
+@cli.command()
+@click.option(
+    "--index",
+    "-i",
+    help="The index of the sentence to inspect.",
+    type=int,
+    required=True,
+)
+@click.option("--source", "-src", type=click.Path(exists=True), help="The source file.")
+@click.option(
+    "--reference", "-ref", type=click.Path(exists=True), help="The reference file."
+)
+@click.argument("hypothesis_files", nargs=-1)
+def compare(index, source, reference, hypothesis_files):
+    combined_data = get_data_multi_hyp(source, reference, hypothesis_files)
+
+    src, ref, hyps = combined_data[index]
+    row_of_strings = [src, ref] + list(hyps)
+    row_of_token_lists = [s.split() for s in row_of_strings]
+
+    # How many columns
+    n_columns = 2 + len(hypothesis_files)
+    sentence_col_width = TOTAL_WIDTH // n_columns
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold magenta", padding=(0, 1))
+
+    # Add columns to display one token per row
+    table.add_column("Example", style="dim", width=12)
+    table.add_column("Source", width=sentence_col_width)
+    table.add_column("Reference", width=sentence_col_width)
+
+    for idx, hypfile in enumerate(hypothesis_files, start=1):
+        hypfile_path = Path(hypfile)
+        table.add_column(f"H{idx}: {hypfile_path.name}", width=sentence_col_width)
+
+    # Iterate over tokens
+    import itertools as it
+
+    # Iterate over tokens in the source, reference, and hypotheses
+
+    for token_idx, tokens in enumerate(
+        it.zip_longest(*row_of_token_lists, fillvalue="")
+    ):
+        table.add_row(f"Token {token_idx}", *tokens)
 
     console.print(table)
 
