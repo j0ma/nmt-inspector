@@ -38,6 +38,20 @@ def get_data(source, reference, hypothesis):
     return combined_data
 
 
+def get_data_json(json_file, json_source_key, json_reference_key, json_hypothesis_key):
+    import json
+
+    json_lines = [json.loads(line) for line in click.open_file(json_file)]
+
+    source_data = [data[json_source_key] for data in json_lines]
+    reference_data = [data[json_reference_key] for data in json_lines]
+    hypothesis_data = [data[json_hypothesis_key] for data in json_lines]
+
+    combined_data = list(zip(source_data, reference_data, hypothesis_data))
+
+    return combined_data
+
+
 def get_data_multi_hyp(source, reference, hypothesis_files):
     source_path = Path(source)
     reference_path = Path(reference)
@@ -70,11 +84,31 @@ def get_data_multi_hyp(source, reference, hypothesis_files):
 @click.option(
     "--hypothesis", "-hyp", type=click.Path(exists=True), help="The hypothesis file."
 )
-def inspect_translations(nsamp, source, reference, hypothesis):
+@click.option("--json-mode", is_flag=True)
+@click.option("--json-file", type=click.Path(exists=True))
+@click.option("--json-source-key", default="source")
+@click.option("--json-reference-key", default="reference")
+@click.option("--json-hypothesis-key", default="hypothesis")
+def inspect_translations(
+    nsamp,
+    source,
+    reference,
+    hypothesis,
+    json_mode,
+    json_file,
+    json_source_key,
+    json_reference_key,
+    json_hypothesis_key,
+):
     # Grab nsamp from environment if not provided
     nsamp = int(nsamp) if nsamp else int(grab_from_env("NSAMP", 10))
 
-    combined_data = get_data(source, reference, hypothesis)
+    if json_mode:
+        combined_data = get_data_json(
+            json_file, json_source_key, json_reference_key, json_hypothesis_key
+        )
+    else:
+        combined_data = get_data(source, reference, hypothesis)
     original_indices = list(range(len(combined_data)))
     shuffled_indices = list(range(len(combined_data)))
     random.shuffle(shuffled_indices)
