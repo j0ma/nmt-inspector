@@ -1,3 +1,6 @@
+- Input/output
+    * read data from single JSON file
+
 - Add scores and ranking by score
     - Sentence-level score computation
     - Corpus-level score computation
