@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
+import json
 import os
 import random
+from itertools import zip_longest
 from pathlib import Path
 
 import click
@@ -39,8 +41,6 @@ def get_data(source, reference, hypothesis):
 
 
 def get_data_json(json_file, json_source_key, json_reference_key, json_hypothesis_key):
-    import json
-
     json_lines = [json.loads(line) for line in click.open_file(json_file)]
 
     source_data = [data[json_source_key] for data in json_lines]
@@ -163,11 +163,8 @@ def inspect_sentence(index, source, reference, hypothesis):
     table.add_column("Reference", width=33)
     table.add_column("Hypothesis", width=33)
 
-    # Iterate over tokens
-    import itertools as it
-
     for token_idx, (s, r, h) in enumerate(
-        it.zip_longest(src.split(), ref.split(), hyp.split())
+        zip_longest(src.split(), ref.split(), hyp.split())
     ):
         table.add_row(f"Token {token_idx}", s, r, h)
 
@@ -210,14 +207,9 @@ def compare(index, source, reference, hypothesis_files):
         hypfile_path = Path(hypfile)
         table.add_column(f"H{idx}: {hypfile_path.name}", width=sentence_col_width)
 
-    # Iterate over tokens
-    import itertools as it
-
     # Iterate over tokens in the source, reference, and hypotheses
 
-    for token_idx, tokens in enumerate(
-        it.zip_longest(*row_of_token_lists, fillvalue="")
-    ):
+    for token_idx, tokens in enumerate(zip_longest(*row_of_token_lists, fillvalue="")):
         table.add_row(f"Token {token_idx}", *tokens)
 
     console.print(table)
