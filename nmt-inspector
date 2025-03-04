@@ -35,7 +35,11 @@ def get_data(source, reference, hypothesis):
     with open(hypothesis_path, "r") as f:
         hypothesis_data = f.read().splitlines()
 
-    combined_data = list(zip(source_data, reference_data, hypothesis_data))
+    combined_data = [
+        (s, r, h if h else "")
+
+        for s, r, h in zip_longest(source_data, reference_data, hypothesis_data)
+    ]
 
     return combined_data
 
@@ -127,7 +131,9 @@ def inspect_translations(
 
         table.add_row("Source", src)
         table.add_row("Reference", ref)
-        table.add_row("Hypothesis", hyp)
+
+        if hyp:
+            table.add_row("Hypothesis", hyp)
 
         console.print(f"Example {i} (real: {real_index}):")
         console.print(table)
